@@ -1,0 +1,52 @@
+# =========
+#  PYTHON
+# =========
+# exclude python VE directory
+.venv/ # if there's a dot at the front, it serves as a hidden folder
+venv/
+
+# exclude python cache file
+__pycache__/
+*.pyc
+
+# =======
+#  JAVA
+# =======
+# compiled class file and build results
+*.class
+*.log
+*.ctxt
+.mtj.tmp/
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# build tools (Maven / Gradle)
+target/
+!.mvn/wrapper/maven-wrapper.jar
+_build/
+.gradle/
+build/
+
+# ==========================================
+# IDE & OS Tools Rules
+# ==========================================
+# IntelliJ IDEA setting files
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# Eclipse setting files
+.metadata/
+.classpath
+.project
+.settings/
+
+# macOS and Windows system files
+.DS_Store
+Thumbs.db
