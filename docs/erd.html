@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>RAG 서비스 데이터베이스 스키마 ERD</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>mermaid.initialize({ startOnLoad: true, theme: 'neutral' });</script>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 40px; background-color: #f8f9fa; }
+        h1 { text-align: center; color: #333; margin-bottom: 30px; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); max-width: 1200px; margin: 0 auto; }
+    </style>
+</head>
+<body>
+    <h1>🤖 RAG DB ERD 시각화</h1>
+    <div class="container">
+        <div class="mermaid">
+            erDiagram
+                USERS ||--o{ DOCUMENTS : "uploads (1:N)"
+                USERS ||--o{ CHAT_SESSIONS : "creates (1:N)"
+                DOCUMENTS ||--o{ DOCUMENT_CHUNKS : "splits into (1:N)"
+                DOCUMENTS ||--o{ CHAT_SESSIONS : "associated with (1:N)"
+                CHAT_SESSIONS ||--o{ CHAT_MESSAGES : "has (1:N)"
+
+                USERS {
+                    bigint id PK
+                    varchar email UK
+                    varchar password
+                    varchar name
+                    timestamp created_at
+                }
+                DOCUMENTS {
+                    bigint id PK
+                    bigint user_id FK
+                    varchar file_name
+                    text s3_url
+                    bigint file_size
+                    timestamp created_at
+                }
+                DOCUMENT_CHUNKS {
+                    bigint id PK
+                    bigint document_id FK
+                    int page_number
+                    text content
+                    varchar vector_index_id
+                }
+                CHAT_SESSIONS {
+                    bigint id PK
+                    bigint user_id FK
+                    bigint document_id FK
+                    varchar title
+                    timestamp created_at
+                }
+                CHAT_MESSAGES {
+                    bigint id PK
+                    bigint session_id FK
+                    varchar role
+                    text content
+                    timestamp created_at
+                }
+        </div>
+    </div>
+</body>
+</html>
