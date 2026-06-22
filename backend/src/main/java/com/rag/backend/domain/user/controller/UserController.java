@@ -17,11 +17,7 @@ public class UserController {
 
     @PostMapping("/register")
     public ResponseEntity<String> register(@RequestBody UserRegisterRequest request) {
-        try {
-            Long userId = userService.register(request);
-            return ResponseEntity.ok("회원가입 완료. 회원 번호 : " + userId);
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
-        }
+        Long userId = userService.register(request);
+        return ResponseEntity.ok("회원가입 완료. 회원 번호 : " + userId);
     }
 }
