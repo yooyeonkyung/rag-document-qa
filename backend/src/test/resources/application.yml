@@ -20,3 +20,11 @@ spring:
 jwt:
   secret: c3ByaW5nLWJvb3Qtc2VjdXJpdHktand0LXNlY3JldC1rZXktZm9yLXJhZy1hcHBsaWNhdGlvbi1kZXZlbG9wbWVudC1zZWNyZXQ=
   expiration-ms: 86400000
+
+aws:
+  credentials:
+    access-key: dummy-access-key
+    secret-key: dummy-secret-key
+  region: ap-northeast-2
+  s3:
+    bucket: dummy-bucket
