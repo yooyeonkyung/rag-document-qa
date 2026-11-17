@@ -6,6 +6,12 @@ were fixed here — `backend/` was explicitly off-limits for this task.
 
 ## 1. Spring's response doesn't carry `file_url` yet
 
+> **Deferred (2026-11-17):** development uses local PDFs first; the
+> S3/Spring wiring is the last step and the project owner will agree it
+> with the Spring teammate then. Leading option: Spring calls
+> `/api/ai/documents/ingest` itself right after upload (it already knows the
+> S3 url), so the frontend never needs `file_url`.
+
 `POST /api/documents` currently returns a bare document id. This
 service's `/api/ai/documents/ingest` needs `file_url` in its request body
 (see Phase 1). Something has to close that gap — most likely one of:
@@ -38,6 +44,9 @@ rotating out via an environment variable at some point — flagged here, not
 changed.
 
 ## 4. What `ai/ai_core` still needs to do
+
+> **Resolved (2026-11-17):** built inside `backend-ai/app/rag/` instead -
+> see Phase 4.
 
 This service's only output is `{document_id, file_name, text}`. Everything
 after that — chunking, embeddings, the Chroma vector store, and answering

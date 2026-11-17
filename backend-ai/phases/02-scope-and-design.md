@@ -1,5 +1,12 @@
 # Phase 2 — Narrowing the scope, and why the code looks the way it does
 
+> **Superseded in part (2026-11-17, see Phase 4):** the LangChain/RAG code
+> now lives inside `backend-ai/app/rag/` instead of a separate `ai/ai_core`
+> module, because Python can't import across those sibling folders without
+> extra packaging and the same person owns both. The auth, S3 and
+> "thin endpoints" reasoning below still applies; the "nothing LangChain-shaped
+> belongs here" parts do not.
+
 ## The scope started too big
 
 The first pass at this folder built a full RAG pipeline inside

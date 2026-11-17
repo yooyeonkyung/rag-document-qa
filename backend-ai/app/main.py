@@ -1,23 +1,21 @@
 """
-FastAPI bridge between the Spring Boot (Java) backend and the LangChain
-(Python) side. Run with: uvicorn app.main:app --reload
+FastAPI bridge between the Spring Boot (Java) backend and the RAG pipeline
+in app/rag (LangChain + Chroma + Gemini). Run with: uvicorn app.main:app --reload
 
-Spring can't call LangChain directly since it's Java, so this service takes
-Spring's upload output (document id + S3 url), pulls the file down, and
-hands back plain text - a form any Python/LangChain code can consume
-without needing to know anything about S3 or Java.
+- POST /api/ai/documents/ingest: S3 PDF -> per-page text
+- POST /api/ai/chat: question about an indexed document -> answer + cited pages
 """
-import io
 from urllib.parse import unquote, urlparse
 
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
 from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
-from pypdf import PdfReader
 
 from app.config import get_current_user_email, settings
-from app.schemas import IngestRequest, IngestResponse
+from app.rag.ingestion import load_pdf_pages
+from app.rag.qa import DocumentNotIndexedError, answer_question
+from app.schemas import ChatRequest, ChatResponse, IngestRequest, IngestResponse, PageText
 
 app = FastAPI(title="RAG AI Backend")
 
@@ -70,19 +68,27 @@ def health():
 
 @app.post("/api/ai/documents/ingest", response_model=IngestResponse)
 def ingest(request: IngestRequest, _owner_email: str = Depends(get_current_user_email)) -> IngestResponse:
-    """Fetch the file Spring uploaded and hand back its plain text.
+    """Fetch the file Spring uploaded and hand back its text, page by page.
 
-    Chunking, embedding, vector storage and QA all live in ai/ai_core, not
-    here - this endpoint's only job is Java-output -> Python-usable text.
+    Not yet wired into indexing (app/rag) - S3/Spring integration is the
+    last step, see phases/04-rag-pipeline.md.
     """
     try:
         pdf_bytes = _download_from_s3(request.file_url)
     except FileNotFoundError as exc:
         raise HTTPException(status.HTTP_502_BAD_GATEWAY, str(exc)) from exc
 
-    pages = PdfReader(io.BytesIO(pdf_bytes)).pages
-    text = "\n".join(page.extract_text() or "" for page in pages)
-    if not text.strip():
+    pages = [PageText(page_number=p.metadata["page"], text=p.page_content) for p in load_pdf_pages(pdf_bytes)]
+    if not pages:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "No extractable text found in the document")
 
-    return IngestResponse(document_id=request.document_id, file_name=request.file_name, text=text)
+    return IngestResponse(document_id=request.document_id, file_name=request.file_name, pages=pages)
+
+
+@app.post("/api/ai/chat", response_model=ChatResponse)
+def chat(request: ChatRequest, _owner_email: str = Depends(get_current_user_email)) -> ChatResponse:
+    """Answer a question using only the given document's indexed chunks."""
+    try:
+        return ChatResponse(**answer_question(request.document_id, request.question))
+    except DocumentNotIndexedError as exc:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc

@@ -16,13 +16,15 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
 
     # Read-only access to the bucket Spring already uploaded the file to.
-    aws_access_key_id: str
-    aws_secret_access_key: str
+    # Optional for now (local-PDF development); boto3 falls back to its
+    # default credential chain when these are unset.
+    aws_access_key_id: str | None = None
+    aws_secret_access_key: str | None = None
     aws_region: str = "ap-northeast-2"
 
     allowed_origins: str = "http://localhost:3000,http://localhost:5173"
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     @property
     def allowed_origins_list(self) -> list[str]:
