@@ -7,7 +7,7 @@ A Full-Stack Web Application that allows users to upload PDF documents and ask q
 ## 🛠 Tech Stack
 - **Frontend**: React.js
 - **Backend (Java)**: Spring Boot, Spring Data JPA, Spring Security (JWT)
-- **Backend (AI)**: FastAPI, Python, OpenAI API
+- **Backend (AI)**: FastAPI, Python, Gemini API
 - **Database**: MySQL, Vector Database
 - **Infrastructure**: AWS S3 (File Storage)
 
