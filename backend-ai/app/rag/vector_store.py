@@ -2,14 +2,23 @@
 Chroma (persisted to disk) + Gemini embeddings. All documents share one
 collection; queries are scoped by the `document_id` metadata filter.
 """
+import logging
+import time
 from functools import lru_cache
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
+from langchain_google_genai._common import GoogleGenerativeAIError
 
 from app.rag.config import rag_settings
+
+logger = logging.getLogger(__name__)
+
+EMBED_BATCH_SIZE = 90  # stay under the free tier's 100 requests/minute
+RATE_LIMIT_WAIT_SECONDS = 60
+MAX_RETRIES = 3
 
 
 def get_embeddings() -> Embeddings:
@@ -34,11 +43,31 @@ def delete_document(document_id: int) -> None:
         store.delete(ids=ids)
 
 
+def _add_with_retry(store: Chroma, chunks: list[Document], ids: list[str]) -> None:
+    for attempt in range(MAX_RETRIES + 1):
+        try:
+            store.add_documents(chunks, ids=ids)
+            return
+        except GoogleGenerativeAIError as exc:
+            if "RESOURCE_EXHAUSTED" not in str(exc) or attempt == MAX_RETRIES:
+                raise
+            logger.warning("Embedding rate limit hit, retrying in %ss", RATE_LIMIT_WAIT_SECONDS)
+            time.sleep(RATE_LIMIT_WAIT_SECONDS)
+
+
 def index_document(document_id: int, chunks: list[Document]) -> int:
-    """(Re)index a document: drop its old chunks first so re-ingesting never duplicates."""
+    """(Re)index a document: drop its old chunks first so re-ingesting never duplicates.
+
+    Chunks are embedded in batches because the Gemini free tier allows only
+    100 embedding requests (= chunks) per minute; on a 429 we wait and retry.
+    """
     delete_document(document_id)
+    store = get_vector_store()
     ids = [f"{document_id}-p{c.metadata['page']}-{c.metadata['chunk_index']}" for c in chunks]
-    get_vector_store().add_documents(chunks, ids=ids)
+    for start in range(0, len(chunks), EMBED_BATCH_SIZE):
+        end = start + EMBED_BATCH_SIZE
+        _add_with_retry(store, chunks[start:end], ids[start:end])
+        logger.info("Indexed %d/%d chunks", min(end, len(chunks)), len(chunks))
     return len(chunks)
 
 

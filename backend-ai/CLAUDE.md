@@ -22,9 +22,12 @@ anything, and update the relevant phase file along with the code.
 
 - Done: JWT verification (Spring's token), S3 download + per-page text
   extraction, RAG pipeline (chunk -> embed -> Chroma -> Gemini answer with
-  page citations), `/api/ai/chat`, local test script.
-- Not yet: ingest endpoint doesn't index into Chroma yet; Spring doesn't
-  call this service yet (S3/Spring wiring is the last step - Phase 4).
+  page citations), follow-up questions via chat history (question
+  rewriting), `/api/ai/chat`, local test script.
+- Not yet: error handling for Gemini 503/429, delete endpoint, large
+  documents, evaluation and monitoring; ingest doesn't index into Chroma
+  and Spring doesn't call this service yet (last step). See Phase 4
+  "Next steps".
 
 ## Structure
 
@@ -85,9 +88,12 @@ needs `Authorization: Bearer <jwt>` (the token Spring issued at login).
 `POST /api/ai/chat` - answer a question from one indexed document
 (provisional contract with Spring, may change)
 ```json
-// request
-{ "document_id": 42, "question": "EC2 인스턴스 중지 방법?" }
-// response
-{ "answer": "... (p.120)", "sources": [ { "page": 120 } ] }
+// request - history: previous turns of this chat session, oldest first ([] for the first question)
+{ "document_id": 42, "question": "그거 삭제는?",
+  "history": [ { "role": "user", "content": "S3 버킷은 어떻게 만들어?" },
+               { "role": "assistant", "content": "콘솔에서 Create bucket... (p.66)" } ] }
+// response - search_query: the standalone question used for retrieval
+{ "answer": "... (p.120)", "search_query": "S3 버킷 삭제 방법은?", "sources": [ { "page": 120 } ] }
 ```
-404 if the document has no indexed chunks.
+404 if the document has no indexed chunks. With history, the follow-up is
+first rewritten into a standalone question (one extra LLM call).

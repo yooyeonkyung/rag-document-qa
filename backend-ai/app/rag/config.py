@@ -21,7 +21,10 @@ class RagSettings(BaseSettings):
     chunk_overlap: int = 150
 
     # How many chunks to hand the LLM per question.
-    retriever_k: int = 4
+    retriever_k: int = 5
+
+    # How many past user/assistant turns to use for question rewriting and answering.
+    history_max_turns: int = 3
 
     chroma_dir: Path = BACKEND_AI_DIR / "chroma_db"
     chroma_collection: str = "documents"
