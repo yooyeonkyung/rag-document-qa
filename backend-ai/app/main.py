@@ -87,8 +87,13 @@ def ingest(request: IngestRequest, _owner_email: str = Depends(get_current_user_
 
 @app.post("/api/ai/chat", response_model=ChatResponse)
 def chat(request: ChatRequest, _owner_email: str = Depends(get_current_user_email)) -> ChatResponse:
-    """Answer a question using only the given document's indexed chunks."""
+    """Answer a question using only the given document's indexed chunks.
+
+    With history, the question is first rewritten into a standalone one so
+    follow-ups like "그거 삭제는?" retrieve the right chunks.
+    """
+    history = [turn.model_dump() for turn in request.history]
     try:
-        return ChatResponse(**answer_question(request.document_id, request.question))
+        return ChatResponse(**answer_question(request.document_id, request.question, history))
     except DocumentNotIndexedError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc

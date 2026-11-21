@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, Field
 
 
@@ -25,9 +27,17 @@ class IngestResponse(BaseModel):
     pages: list[PageText]
 
 
+class ChatTurn(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str
+
+
 class ChatRequest(BaseModel):
     document_id: int
     question: str = Field(min_length=1)
+    # Previous turns of this chat session, oldest first (Spring loads them from
+    # chat_messages). Empty for the first question.
+    history: list[ChatTurn] = []
 
 
 class Source(BaseModel):
@@ -36,5 +46,8 @@ class Source(BaseModel):
 
 class ChatResponse(BaseModel):
     answer: str
+    # The standalone question actually used for retrieval (= question when
+    # there's no history). Useful for debugging and monitoring.
+    search_query: str
     # Pages of the chunks the answer was built from, ascending.
     sources: list[Source]

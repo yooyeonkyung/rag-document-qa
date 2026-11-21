@@ -8,6 +8,7 @@ Run from backend-ai/:
 Without -q it opens an interactive question loop (empty line to quit).
 """
 import argparse
+import logging
 from pathlib import Path
 
 from app.rag.ingestion import load_pdf_pages, split_pages
@@ -23,6 +24,7 @@ def main() -> None:
     parser.add_argument("--skip-index", action="store_true", help="reuse what's already in Chroma")
     parser.add_argument("-q", "--question", help="ask once and exit")
     args = parser.parse_args()
+    logging.basicConfig(level=logging.INFO, format="%(message)s")
 
     if not args.skip_index:
         if args.pdf is None:
@@ -34,10 +36,15 @@ def main() -> None:
         index_document(args.document_id, chunks)
         print("Done.\n")
 
+    # The interactive loop keeps chat history, so follow-up questions work.
+    history: list[dict] = []
     questions = [args.question] if args.question else iter(lambda: input("질문> ").strip(), "")
     for question in questions:
-        result = answer_question(args.document_id, question)
+        result = answer_question(args.document_id, question, history)
+        if result["search_query"] != question:
+            print(f"(검색 질문: {result['search_query']})")
         print(f"\n{result['answer']}\n출처: {', '.join(f'p.{s['page']}' for s in result['sources'])}\n")
+        history += [{"role": "user", "content": question}, {"role": "assistant", "content": result["answer"]}]
 
 
 if __name__ == "__main__":
