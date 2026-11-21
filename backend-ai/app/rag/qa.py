@@ -10,17 +10,20 @@ from langchain_core.messages import AIMessage, BaseMessage, HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app.rag.config import rag_settings
+from app.rag.errors import DocumentNotIndexedError, ModelUnavailableError, is_temporary_model_error
 from app.rag.prompts import CONDENSE_QUESTION_PROMPT, QA_PROMPT
 from app.rag.vector_store import search
 
 
-class DocumentNotIndexedError(LookupError):
-    pass
-
-
 @lru_cache
 def get_llm() -> BaseChatModel:
-    return ChatGoogleGenerativeAI(model=rag_settings.llm_model, google_api_key=rag_settings.google_api_key)
+    return ChatGoogleGenerativeAI(
+        model=rag_settings.llm_model,
+        google_api_key=rag_settings.google_api_key,
+        # The SDK default (6) retries 503s/429s so many times that one request can
+        # burn the free tier's daily quota; fail fast and let the client retry.
+        max_retries=rag_settings.llm_max_retries,
+    )
 
 
 def _format_context(chunks: list[Document]) -> str:
@@ -41,6 +44,16 @@ def condense_question(question: str, history: list[BaseMessage]) -> str:
 
 
 def answer_question(document_id: int, question: str, history: list[dict] | None = None) -> dict:
+    """Raises DocumentNotIndexedError, or ModelUnavailableError when Gemini is overloaded/rate-limited."""
+    try:
+        return _answer_question(document_id, question, history)
+    except Exception as exc:
+        if is_temporary_model_error(exc):
+            raise ModelUnavailableError(str(exc)) from exc
+        raise
+
+
+def _answer_question(document_id: int, question: str, history: list[dict] | None) -> dict:
     history_messages = _to_messages(history or [])
     search_query = condense_question(question, history_messages)
 

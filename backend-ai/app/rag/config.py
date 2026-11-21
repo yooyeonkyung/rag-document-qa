@@ -15,6 +15,8 @@ class RagSettings(BaseSettings):
     # Model names change often - check https://ai.google.dev/gemini-api/docs/models
     embedding_model: str = "gemini-embedding-001"
     llm_model: str = "gemini-3.5-flash"
+    # Total attempts per LLM call (1 = no retry; 0 would mean "SDK default").
+    llm_max_retries: int = 2
 
     # Chunking: split within each page so every chunk maps to exactly one page.
     chunk_size: int = 1000
