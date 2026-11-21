@@ -61,6 +61,17 @@ Set just so the pipeline runs; to be decided with the project owner:
   document -> `QA_PROMPT` with `[p.N]`-labelled excerpts + recent history ->
   Gemini -> `{answer, search_query, sources: [{page}]}` (sources = pages of
   the retrieved chunks). No chunks -> `DocumentNotIndexedError` -> HTTP 404.
+- Errors (`errors.py`): Gemini 429/5xx - chat errors arrive as
+  `GoogleRateLimitError`/`GoogleAPIError`, embedding errors as
+  `GoogleGenerativeAIError` with the status only in the message - are turned
+  into `ModelUnavailableError`, which `main.py` maps to HTTP 503 "try again
+  shortly". Other exceptions stay 500 so real bugs aren't hidden.
+  `llm_max_retries = 2` (one retry): the SDK default of 6 retries burned the
+  free tier's 20/day Flash quota in a single failing request.
+- `DELETE /api/ai/documents/{id}` deletes the document's chunks and returns
+  the count; idempotent (0 if never indexed). FastAPI has no ownership data,
+  so it trusts the caller - it's meant to be called only by Spring after
+  Spring has checked the user owns the document.
 - Chat history is NOT stored here. Spring owns it (MySQL `chat_messages`)
   and sends it in each `/api/ai/chat` request.
 
@@ -79,7 +90,15 @@ The chat-history rewrite is verified with fake models only (rewrite runs only
 when there's history, retrieval uses the rewritten question, API 200 / 404 /
 401 / 422); the real-Gemini follow-up test hit the **free-tier daily limit of
 20 generate requests for the Flash model** - the SDK's automatic retries on
-503 used it up quickly. Re-test after the daily reset.
+503 used it up quickly. Re-tested 2026-11-21 with real Gemini on pages 26-70: "How do I create a
+bucket?" -> answer citing p.48/50/66; follow-up "How do I delete it?" was
+rewritten to "How do I delete an Amazon S3 bucket?" and answered with the
+empty-then-delete steps from p.57-59.
+
+Error handling + delete API (#24), fake models: chat 429 / 503 / embedding
+429 -> HTTP 503 with the retry message, unrelated `ValueError` -> 500;
+delete removes only that document's chunks (16 -> 0, other doc kept),
+second delete returns 0, no token -> 401, chat after delete -> 404.
 
 ## Note on the sample PDFs
 
@@ -89,10 +108,8 @@ limit, so test with `--pages 1-30` or similar.
 
 ## Next steps (agreed 2026-11-17)
 
-1. Gemini 503/429 during answering -> return a "temporarily unavailable,
-   try again shortly" error (HTTP 503) instead of a 500.
-2. `DELETE /api/ai/documents/{document_id}` -> remove the document's
-   chunks from Chroma.
+1. ~~Gemini 503/429 -> HTTP 503 "try again shortly"~~ - done (#24).
+2. ~~`DELETE /api/ai/documents/{document_id}`~~ - done (#24).
 3. Large documents (3,000+ pages): free tier works but is slow (~100
    chunks/minute plus a daily cap). Options to decide: page limit,
    background indexing with progress, local BGE-M3 embeddings (no rate

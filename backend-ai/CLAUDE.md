@@ -23,9 +23,9 @@ anything, and update the relevant phase file along with the code.
 - Done: JWT verification (Spring's token), S3 download + per-page text
   extraction, RAG pipeline (chunk -> embed -> Chroma -> Gemini answer with
   page citations), follow-up questions via chat history (question
-  rewriting), `/api/ai/chat`, local test script.
-- Not yet: error handling for Gemini 503/429, delete endpoint, large
-  documents, evaluation and monitoring; ingest doesn't index into Chroma
+  rewriting), `/api/ai/chat`, `DELETE /api/ai/documents/{id}`, Gemini
+  503/429 -> HTTP 503 "try again shortly", local test script.
+- Not yet: large documents, evaluation and monitoring; ingest doesn't index into Chroma
   and Spring doesn't call this service yet (last step). See Phase 4
   "Next steps".
 
@@ -40,7 +40,8 @@ app/
     config.py      RAG settings (models, chunk size, k, Chroma path)
     ingestion.py   PDF -> per-page Documents -> chunks (never cross pages)
     vector_store.py Chroma + Gemini embeddings, index/delete/search by document_id
-    prompts.py     QA prompt
+    prompts.py     question-rewrite + QA prompts
+    errors.py      DocumentNotIndexedError, ModelUnavailableError (Gemini 429/5xx)
     qa.py          retrieve -> prompt -> Gemini -> {answer, sources}
 scripts/
   try_rag.py       run the pipeline on a local PDF, no Spring/S3/JWT
@@ -97,3 +98,14 @@ needs `Authorization: Bearer <jwt>` (the token Spring issued at login).
 ```
 404 if the document has no indexed chunks. With history, the follow-up is
 first rewritten into a standalone question (one extra LLM call).
+
+`DELETE /api/ai/documents/{document_id}` - remove the document's chunks from Chroma
+```json
+{ "document_id": 42, "deleted_chunks": 116 }   // 0 if it was never indexed (idempotent)
+```
+
+Errors: when Gemini is overloaded (5xx) or rate-limited (429), any endpoint
+that calls it returns **503**
+`{"detail": "The AI model is temporarily unavailable. Please try again in a moment."}`.
+Note the free tier's daily limit for the Flash model is small (20 requests/day
+at the time of writing), so a 503 can also mean "quota used up until tomorrow".

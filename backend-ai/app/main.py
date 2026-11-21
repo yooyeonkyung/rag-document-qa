@@ -4,18 +4,34 @@ in app/rag (LangChain + Chroma + Gemini). Run with: uvicorn app.main:app --reloa
 
 - POST /api/ai/documents/ingest: S3 PDF -> per-page text
 - POST /api/ai/chat: question about an indexed document -> answer + cited pages
+- DELETE /api/ai/documents/{document_id}: remove a document's chunks from Chroma
+
+Gemini overload/rate-limit errors become 503 "try again shortly" responses.
 """
+import logging
 from urllib.parse import unquote, urlparse
 
 import boto3
 from botocore.exceptions import ClientError, NoCredentialsError
-from fastapi import Depends, FastAPI, HTTPException, status
+from fastapi import Depends, FastAPI, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import get_current_user_email, settings
+from app.rag.errors import DocumentNotIndexedError, ModelUnavailableError
 from app.rag.ingestion import load_pdf_pages
-from app.rag.qa import DocumentNotIndexedError, answer_question
-from app.schemas import ChatRequest, ChatResponse, IngestRequest, IngestResponse, PageText
+from app.rag.qa import answer_question
+from app.rag.vector_store import delete_document
+from app.schemas import (
+    ChatRequest,
+    ChatResponse,
+    DeleteDocumentResponse,
+    IngestRequest,
+    IngestResponse,
+    PageText,
+)
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="RAG AI Backend")
 
@@ -26,6 +42,16 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(ModelUnavailableError)
+def model_unavailable_handler(_request: Request, exc: ModelUnavailableError) -> JSONResponse:
+    """Gemini overloaded (503) or rate-limited (429): tell the caller to retry later."""
+    logger.warning("Gemini temporarily unavailable: %s", exc)
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": "The AI model is temporarily unavailable. Please try again in a moment."},
+    )
 
 
 def _parse_s3_url(url: str) -> tuple[str, str]:
@@ -97,3 +123,12 @@ def chat(request: ChatRequest, _owner_email: str = Depends(get_current_user_emai
         return ChatResponse(**answer_question(request.document_id, request.question, history))
     except DocumentNotIndexedError as exc:
         raise HTTPException(status.HTTP_404_NOT_FOUND, str(exc)) from exc
+
+
+@app.delete("/api/ai/documents/{document_id}", response_model=DeleteDocumentResponse)
+def delete(document_id: int, _owner_email: str = Depends(get_current_user_email)) -> DeleteDocumentResponse:
+    """Remove a document's chunks from Chroma (call when Spring deletes the document).
+
+    Idempotent: deleting a document that was never indexed returns deleted_chunks=0.
+    """
+    return DeleteDocumentResponse(document_id=document_id, deleted_chunks=delete_document(document_id))

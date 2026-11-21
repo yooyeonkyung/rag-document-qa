@@ -51,3 +51,9 @@ class ChatResponse(BaseModel):
     search_query: str
     # Pages of the chunks the answer was built from, ascending.
     sources: list[Source]
+
+
+class DeleteDocumentResponse(BaseModel):
+    document_id: int
+    # 0 when the document was never indexed - deleting is idempotent.
+    deleted_chunks: int
