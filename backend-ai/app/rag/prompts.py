@@ -17,7 +17,7 @@ CONDENSE_QUESTION_PROMPT = ChatPromptTemplate.from_messages(
     ]
 )
 
-# Step 2: answer from the retrieved excerpts.
+# Step 2: ANSWER from the retrieved excerpts.
 QA_PROMPT = ChatPromptTemplate.from_messages(
     [
         (

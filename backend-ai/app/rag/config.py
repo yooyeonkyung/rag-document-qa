@@ -15,6 +15,8 @@ class RagSettings(BaseSettings):
     # Model names change often - check https://ai.google.dev/gemini-api/docs/models
     embedding_model: str = "gemini-embedding-001"
     llm_model: str = "gemini-3.5-flash"
+    # Total attempts per LLM call (1 = no retry; 0 would mean "SDK default").
+    llm_max_retries: int = 2
 
     # Chunking: split within each page so every chunk maps to exactly one page.
     chunk_size: int = 1000
@@ -25,6 +27,13 @@ class RagSettings(BaseSettings):
 
     # How many past user/assistant turns to use for question rewriting and answering.
     history_max_turns: int = 3
+
+    # Large documents: pages 1..priority_pages are indexed first (status
+    # "partial" = searchable), the rest continues in the background,
+    # segment_pages at a time so progress can be saved and resumed.
+    priority_pages: int = 500
+    segment_pages: int = 50
+    jobs_db: Path = BACKEND_AI_DIR / "data" / "index_jobs.sqlite3"
 
     chroma_dir: Path = BACKEND_AI_DIR / "chroma_db"
     chroma_collection: str = "documents"

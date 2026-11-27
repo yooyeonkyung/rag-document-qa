@@ -10,9 +10,17 @@ from pypdf import PdfReader
 from app.rag.config import rag_settings
 
 
+def open_pdf(pdf_bytes: bytes) -> PdfReader:
+    return PdfReader(io.BytesIO(pdf_bytes))
+
+
 def load_pdf_pages(pdf_bytes: bytes, first_page: int = 1, last_page: int | None = None) -> list[Document]:
     """Extract text per page (1-based, inclusive range). Pages with no text are skipped."""
-    reader = PdfReader(io.BytesIO(pdf_bytes))
+    return read_pages(open_pdf(pdf_bytes), first_page, last_page)
+
+
+def read_pages(reader: PdfReader, first_page: int = 1, last_page: int | None = None) -> list[Document]:
+    """Same as load_pdf_pages, but reuses an open reader (large PDFs are read segment by segment)."""
     last_page = min(last_page or len(reader.pages), len(reader.pages))
     pages = []
     for page_number in range(first_page, last_page + 1):

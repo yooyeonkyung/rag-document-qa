@@ -2,6 +2,20 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+## Defines the shape of a data
+# IngestRequest
+# PageText
+# IngestResponse
+
+# ChatTurn
+# ChatRequest
+# Source
+# ChatResponse
+
+# DeleteDocumentResponse
+
+# IndexRequest
+# IndexStatusResponse
 
 class IngestRequest(BaseModel):
     # Spring's `documents.id` - the correlation key back to MySQL.
@@ -51,3 +65,33 @@ class ChatResponse(BaseModel):
     search_query: str
     # Pages of the chunks the answer was built from, ascending.
     sources: list[Source]
+
+
+class DeleteDocumentResponse(BaseModel):
+    document_id: int
+    # 0 when the document was never indexed - deleting is idempotent.
+    deleted_chunks: int
+
+
+class IndexRequest(BaseModel):
+    # Same S3 URL as IngestRequest.file_url.
+    file_url: str
+    file_name: str | None = None
+    # True: continue a paused/failed job after its last indexed page.
+    # False: start over (old chunks are deleted).
+    resume: bool = False
+
+
+class IndexStatusResponse(BaseModel):
+    document_id: int
+    # queued | indexing | partial | completed | paused | failed
+    status: str
+    total_pages: int | None
+    # Pages 1..indexed_pages are in Chroma.
+    indexed_pages: int
+    # True once any pages are indexed - /api/ai/chat works (on those pages).
+    searchable: bool
+    # True while a background job is actually working on this document.
+    running: bool
+    error: str | None
+    updated_at: str

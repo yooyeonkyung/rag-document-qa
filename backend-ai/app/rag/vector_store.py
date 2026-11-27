@@ -10,9 +10,9 @@ from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.embeddings import Embeddings
 from langchain_google_genai import GoogleGenerativeAIEmbeddings
-from langchain_google_genai._common import GoogleGenerativeAIError
 
 from app.rag.config import rag_settings
+from app.rag.errors import is_temporary_model_error
 
 logger = logging.getLogger(__name__)
 
@@ -36,11 +36,13 @@ def get_vector_store() -> Chroma:
     )
 
 
-def delete_document(document_id: int) -> None:
+def delete_document(document_id: int) -> int:
+    """Delete all chunks of a document; returns how many were deleted (0 if none)."""
     store = get_vector_store()
     ids = store.get(where={"document_id": document_id}, include=[])["ids"]
     if ids:
         store.delete(ids=ids)
+    return len(ids)
 
 
 def _add_with_retry(store: Chroma, chunks: list[Document], ids: list[str]) -> None:
@@ -48,20 +50,26 @@ def _add_with_retry(store: Chroma, chunks: list[Document], ids: list[str]) -> No
         try:
             store.add_documents(chunks, ids=ids)
             return
-        except GoogleGenerativeAIError as exc:
-            if "RESOURCE_EXHAUSTED" not in str(exc) or attempt == MAX_RETRIES:
+        except Exception as exc:
+            if not is_temporary_model_error(exc) or attempt == MAX_RETRIES:
                 raise
-            logger.warning("Embedding rate limit hit, retrying in %ss", RATE_LIMIT_WAIT_SECONDS)
+            logger.warning("Embedding rate-limited/unavailable, retrying in %ss", RATE_LIMIT_WAIT_SECONDS)
             time.sleep(RATE_LIMIT_WAIT_SECONDS)
 
 
 def index_document(document_id: int, chunks: list[Document]) -> int:
-    """(Re)index a document: drop its old chunks first so re-ingesting never duplicates.
+    """(Re)index a document: drop its old chunks first so re-ingesting never duplicates."""
+    delete_document(document_id)
+    return add_chunks(document_id, chunks)
+
+
+def add_chunks(document_id: int, chunks: list[Document]) -> int:
+    """Embed and store chunks without deleting anything (used per segment by jobs.py).
 
     Chunks are embedded in batches because the Gemini free tier allows only
-    100 embedding requests (= chunks) per minute; on a 429 we wait and retry.
+    100 embedding requests (= chunks) per minute; on a 429/503 we wait and retry.
+    Ids are deterministic and Chroma upserts, so re-adding a chunk overwrites it.
     """
-    delete_document(document_id)
     store = get_vector_store()
     ids = [f"{document_id}-p{c.metadata['page']}-{c.metadata['chunk_index']}" for c in chunks]
     for start in range(0, len(chunks), EMBED_BATCH_SIZE):
