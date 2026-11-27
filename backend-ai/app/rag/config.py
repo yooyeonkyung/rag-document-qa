@@ -28,6 +28,13 @@ class RagSettings(BaseSettings):
     # How many past user/assistant turns to use for question rewriting and answering.
     history_max_turns: int = 3
 
+    # Large documents: pages 1..priority_pages are indexed first (status
+    # "partial" = searchable), the rest continues in the background,
+    # segment_pages at a time so progress can be saved and resumed.
+    priority_pages: int = 500
+    segment_pages: int = 50
+    jobs_db: Path = BACKEND_AI_DIR / "data" / "index_jobs.sqlite3"
+
     chroma_dir: Path = BACKEND_AI_DIR / "chroma_db"
     chroma_collection: str = "documents"
 

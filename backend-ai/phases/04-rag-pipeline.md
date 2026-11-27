@@ -110,11 +110,9 @@ limit, so test with `--pages 1-30` or similar.
 
 1. ~~Gemini 503/429 -> HTTP 503 "try again shortly"~~ - done (#24).
 2. ~~`DELETE /api/ai/documents/{document_id}`~~ - done (#24).
-3. Large documents (3,000+ pages): free tier works but is slow (~100
-   chunks/minute plus a daily cap). Options to decide: page limit,
-   background indexing with progress, local BGE-M3 embeddings (no rate
-   limit), or a paid tier.
-4. Evaluation: golden Q&A set with known answer pages -> retrieval metrics
+3. ~~Large documents~~ - background, resumable indexing with 500 priority
+   pages: see Phase 5 (#26).
+4. Evaluation (see Phase 6; golden set drafted in #26): golden Q&A set with known answer pages -> retrieval metrics
    (hit rate / Recall@k, MRR) and answer metrics (faithfulness, relevance,
    LLM-as-judge or RAGAS); use it to compare k, chunk size, Gemini vs BGE-M3.
 5. Monitoring: log every request (question, search_query, retrieved chunk

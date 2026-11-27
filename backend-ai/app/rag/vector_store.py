@@ -58,12 +58,18 @@ def _add_with_retry(store: Chroma, chunks: list[Document], ids: list[str]) -> No
 
 
 def index_document(document_id: int, chunks: list[Document]) -> int:
-    """(Re)index a document: drop its old chunks first so re-ingesting never duplicates.
+    """(Re)index a document: drop its old chunks first so re-ingesting never duplicates."""
+    delete_document(document_id)
+    return add_chunks(document_id, chunks)
+
+
+def add_chunks(document_id: int, chunks: list[Document]) -> int:
+    """Embed and store chunks without deleting anything (used per segment by jobs.py).
 
     Chunks are embedded in batches because the Gemini free tier allows only
     100 embedding requests (= chunks) per minute; on a 429/503 we wait and retry.
+    Ids are deterministic and Chroma upserts, so re-adding a chunk overwrites it.
     """
-    delete_document(document_id)
     store = get_vector_store()
     ids = [f"{document_id}-p{c.metadata['page']}-{c.metadata['chunk_index']}" for c in chunks]
     for start in range(0, len(chunks), EMBED_BATCH_SIZE):

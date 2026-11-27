@@ -2,7 +2,8 @@
 #  PYTHON
 # =========
 # exclude python VE directory
-.venv/ # if there's a dot at the front, it serves as a hidden folder
+# if there's a dot at the front, it serves as a hidden folder
+.venv/ 
 venv/
 
 # exclude python cache file
